@@ -1,0 +1,19 @@
+# Environment variables
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build outputs (if you add a build step later)
+dist/
+build/
+*.zip
+

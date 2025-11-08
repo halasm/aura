@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AURA Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="options-container">
+    <header>
+      <h1>AURA Settings</h1>
+      <p class="subtitle">Configure your reading preferences</p>
+    </header>
+    
+    <main>
+      <section class="settings-section">
+        <h2>Speech Settings</h2>
+        
+        <div class="setting-group">
+          <label for="speech-rate">
+            Speech Rate
+            <span class="value-display" id="rate-value">1.0</span>
+          </label>
+          <input 
+            type="range" 
+            id="speech-rate" 
+            min="0.5" 
+            max="2.0" 
+            step="0.1" 
+            value="1.0"
+            aria-label="Speech rate"
+          >
+          <div class="range-labels">
+            <span>Slow</span>
+            <span>Fast</span>
+          </div>
+        </div>
+        
+        <div class="setting-group">
+          <label for="speech-pitch">
+            Pitch
+            <span class="value-display" id="pitch-value">1.0</span>
+          </label>
+          <input 
+            type="range" 
+            id="speech-pitch" 
+            min="0.5" 
+            max="2.0" 
+            step="0.1" 
+            value="1.0"
+            aria-label="Speech pitch"
+          >
+          <div class="range-labels">
+            <span>Low</span>
+            <span>High</span>
+          </div>
+        </div>
+        
+        <div class="setting-group">
+          <label for="speech-volume">
+            Volume
+            <span class="value-display" id="volume-value">1.0</span>
+          </label>
+          <input 
+            type="range" 
+            id="speech-volume" 
+            min="0.0" 
+            max="1.0" 
+            step="0.1" 
+            value="1.0"
+            aria-label="Speech volume"
+          >
+          <div class="range-labels">
+            <span>Quiet</span>
+            <span>Loud</span>
+          </div>
+        </div>
+        
+        <div class="setting-group">
+          <label for="speech-voice">Voice</label>
+          <select id="speech-voice" aria-label="Select voice">
+            <option value="">Default (Browser default)</option>
+          </select>
+        </div>
+      </section>
+      
+      <div class="actions">
+        <button id="save-button" class="primary-button">Save Settings</button>
+        <button id="reset-button" class="secondary-button">Reset to Defaults</button>
+      </div>
+      
+      <div id="status" class="status" aria-live="polite" aria-atomic="true"></div>
+    </main>
+  </div>
+  
+  <script type="module" src="options.js"></script>
+</body>
+</html>
+

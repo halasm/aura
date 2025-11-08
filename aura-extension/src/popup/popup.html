@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AURA - Read this page</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header>
+      <h1>AURA</h1>
+      <p class="subtitle">Assistive Universal Reading Assistant</p>
+    </header>
+    
+    <main>
+      <button id="read-button" class="primary-button" aria-label="Read this page">
+        Read this page
+      </button>
+      
+      <div id="status" class="status" aria-live="polite" aria-atomic="true"></div>
+      
+      <div class="controls" id="controls" style="display: none;">
+        <button id="pause-button" class="control-button">Pause</button>
+        <button id="resume-button" class="control-button" style="display: none;">Resume</button>
+        <button id="stop-button" class="control-button">Stop</button>
+      </div>
+      
+      <div class="footer">
+        <a href="#" id="options-link">Settings</a>
+      </div>
+    </main>
+  </div>
+  
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
+
