@@ -2,10 +2,12 @@
  * Popup initialization and controls
  */
 
-import { sendMessage, sendMessageToTab } from '../common/messaging.js';
-import { MESSAGE_TYPES, READING_STATUS } from '../common/constants.js';
+import { sendMessageToTab } from '../common/messaging.js';
+import { MESSAGE_TYPES, READING_STATUS, READING_MODES, STORAGE_KEYS } from '../common/constants.js';
+import { getStorage, setStorage } from '../common/storage.js';
 
 let currentStatus = READING_STATUS.IDLE;
+let currentMode = READING_MODES.SUMMARY;
 
 // Get DOM elements
 const readButton = document.getElementById('read-button');
@@ -15,6 +17,7 @@ const pauseButton = document.getElementById('pause-button');
 const resumeButton = document.getElementById('resume-button');
 const stopButton = document.getElementById('stop-button');
 const optionsLink = document.getElementById('options-link');
+const modeRadios = document.querySelectorAll('input[name="reading-mode"]');
 
 /**
  * Update status display
@@ -25,6 +28,7 @@ function updateStatus(status) {
   
   const statusMessages = {
     [READING_STATUS.IDLE]: 'Ready to read',
+    [READING_STATUS.SUMMARIZING]: 'Summarizing this page…',
     [READING_STATUS.READING]: 'Reading…',
     [READING_STATUS.PAUSED]: 'Paused',
     [READING_STATUS.STOPPED]: 'Stopped',
@@ -49,6 +53,14 @@ function updateButtons(status) {
       pauseButton.disabled = false;
       resumeButton.disabled = true;
       stopButton.disabled = false;
+      break;
+
+    case READING_STATUS.SUMMARIZING:
+      readButton.disabled = true;
+      controls.style.display = 'none';
+      pauseButton.disabled = true;
+      resumeButton.disabled = true;
+      stopButton.disabled = true;
       break;
 
     case READING_STATUS.PAUSED:
@@ -106,36 +118,26 @@ async function canInjectScript(tabId) {
 }
 
 /**
- * Inject content script if needed
+ * Ensure content script is ready
  * @param {number} tabId - Tab ID
  */
 async function ensureContentScript(tabId) {
   try {
-    // Try to ping the content script
+    // Try to ping the content script (it should already be loaded from manifest)
     await sendMessageToTab(tabId, MESSAGE_TYPES.GET_STATUS);
     return true; // Content script is ready
   } catch (error) {
-    // Content script not ready, try to inject it
+    // Content script might not be ready yet, wait a bit and try again
+    console.log('[AURA Popup] Content script not ready, waiting...');
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     try {
-      if (await canInjectScript(tabId)) {
-        await chrome.scripting.executeScript({
-          target: { tabId: tabId },
-          files: ['src/content/contentScript.js']
-        });
-        // Wait a bit for the script to initialize
-        await new Promise(resolve => setTimeout(resolve, 200));
-        // Try to ping again to confirm it's ready
-        try {
-          await sendMessageToTab(tabId, MESSAGE_TYPES.GET_STATUS);
-          return true;
-        } catch (pingError) {
-          console.error('Content script injected but not responding:', pingError);
-          return false;
-        }
-      }
-      return false;
-    } catch (injectError) {
-      console.error('Could not inject content script:', injectError);
+      await sendMessageToTab(tabId, MESSAGE_TYPES.GET_STATUS);
+      return true;
+    } catch (retryError) {
+      // If it's still not ready, the script might have failed to load
+      // Don't try to inject manually since it's in manifest.json
+      console.error('[AURA Popup] Content script not responding. It should load automatically from manifest.json');
       return false;
     }
   }
@@ -165,7 +167,8 @@ async function startReading() {
       throw new Error('Content script failed to load. Please refresh the page and try again.');
     }
 
-    await sendMessageToTab(tab.id, MESSAGE_TYPES.START_READING);
+    const mode = currentMode;
+    await sendMessageToTab(tab.id, MESSAGE_TYPES.START_READING, { mode });
     updateStatus(READING_STATUS.READING);
     updateButtons(READING_STATUS.READING);
   } catch (error) {
@@ -272,6 +275,9 @@ updateButtons(READING_STATUS.IDLE);
 // Refresh status when popup opens
 refreshStatus();
 
+// Load reading mode preference
+initReadingMode();
+
 // Poll for status updates while popup is open
 const statusInterval = setInterval(refreshStatus, 1000);
 
@@ -280,3 +286,46 @@ window.addEventListener('beforeunload', () => {
   clearInterval(statusInterval);
 });
 
+async function initReadingMode() {
+  try {
+    const stored = await getStorage(STORAGE_KEYS.READING_MODE);
+    const savedMode = stored?.[STORAGE_KEYS.READING_MODE];
+    if (isValidMode(savedMode)) {
+      currentMode = savedMode;
+    }
+  } catch (error) {
+    console.warn('Could not load reading mode preference, defaulting to summary:', error);
+  }
+
+  updateModeRadios();
+
+  modeRadios.forEach((radio) => {
+    radio.addEventListener('change', (event) => {
+      if (event.target.checked && isValidMode(event.target.value)) {
+        setMode(event.target.value);
+      }
+    });
+  });
+}
+
+function updateModeRadios() {
+  modeRadios.forEach((radio) => {
+    radio.checked = radio.value === currentMode;
+  });
+}
+
+function isValidMode(mode) {
+  return mode === READING_MODES.SUMMARY || mode === READING_MODES.FULL;
+}
+
+async function setMode(mode) {
+  currentMode = mode;
+  updateModeRadios();
+  try {
+    await setStorage({
+      [STORAGE_KEYS.READING_MODE]: mode
+    });
+  } catch (error) {
+    console.error('Failed to persist reading mode preference:', error);
+  }
+}

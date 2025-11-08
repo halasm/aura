@@ -11,6 +11,7 @@ class Overlay {
     this.pauseButton = null;
     this.resumeButton = null;
     this.stopButton = null;
+    this.summaryElement = null;
     this.onPause = null;
     this.onResume = null;
     this.onStop = null;
@@ -35,6 +36,14 @@ class Overlay {
     this.statusElement.setAttribute('aria-live', 'polite');
     this.statusElement.setAttribute('aria-atomic', 'true');
     this.statusElement.textContent = 'Ready';
+
+    // Create summary container
+    this.summaryElement = document.createElement('div');
+    this.summaryElement.id = 'aura-summary';
+    this.summaryElement.setAttribute('role', 'document');
+    this.summaryElement.setAttribute('aria-live', 'polite');
+    this.summaryElement.hidden = true;
+    this.overlay.appendChild(this.summaryElement);
 
     // Create controls container
     const controls = document.createElement('div');
@@ -129,6 +138,7 @@ class Overlay {
 
     const statusMessages = {
       [READING_STATUS.IDLE]: 'Ready',
+      [READING_STATUS.SUMMARIZING]: 'Summarizing…',
       [READING_STATUS.READING]: 'Reading…',
       [READING_STATUS.PAUSED]: 'Paused',
       [READING_STATUS.STOPPED]: 'Stopped',
@@ -153,6 +163,14 @@ class Overlay {
         this.pauseButton.disabled = false;
         this.resumeButton.disabled = true;
         this.stopButton.disabled = false;
+        break;
+
+      case READING_STATUS.SUMMARIZING:
+        this.pauseButton.style.display = 'block';
+        this.resumeButton.style.display = 'none';
+        this.pauseButton.disabled = true;
+        this.resumeButton.disabled = true;
+        this.stopButton.disabled = true;
         break;
 
       case READING_STATUS.PAUSED:
@@ -222,6 +240,7 @@ class Overlay {
     this.pauseButton = null;
     this.resumeButton = null;
     this.stopButton = null;
+    this.summaryElement = null;
   }
 
   /**
@@ -231,8 +250,23 @@ class Overlay {
   exists() {
     return this.overlay !== null;
   }
+
+  /**
+   * Update the summary display text
+   * @param {string} text - Summary text
+   */
+  updateSummary(text) {
+    if (!this.summaryElement) return;
+
+    if (text && text.trim()) {
+      this.summaryElement.textContent = text.trim();
+      this.summaryElement.hidden = false;
+    } else {
+      this.summaryElement.textContent = '';
+      this.summaryElement.hidden = true;
+    }
+  }
 }
 
 // Export singleton instance
 export const overlay = new Overlay();
-

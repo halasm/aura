@@ -21,7 +21,8 @@
     }
   },
   "background": {
-    "service_worker": "src/background/serviceWorker.js"
+    "service_worker": "src/background/serviceWorker.js",
+    "type": "module"
   },
   "content_scripts": [
     {
@@ -59,4 +60,3 @@
     "128": "icons/icon128.png"
   }
 }
-

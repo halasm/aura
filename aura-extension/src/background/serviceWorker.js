@@ -1,51 +1,32 @@
 /**
  * Background service worker for AURA extension
- * Handles extension icon clicks, keyboard shortcuts, message routing
+ * Handles toolbar clicks, keyboard shortcuts, messaging, and AI summaries
  */
 
-// Message types (inline to avoid ES module issues)
-const MESSAGE_TYPES = {
-  START_READING: 'START_READING',
-  PAUSE_READING: 'PAUSE_READING',
-  RESUME_READING: 'RESUME_READING',
-  STOP_READING: 'STOP_READING',
-  GET_STATUS: 'GET_STATUS',
-  STATUS_UPDATE: 'STATUS_UPDATE',
-  CONTENT_EXTRACTED: 'CONTENT_EXTRACTED',
-  READING_COMPLETE: 'READING_COMPLETE',
-  READING_ERROR: 'READING_ERROR'
-};
+import { MESSAGE_TYPES, COMMANDS, STORAGE_KEYS, READING_MODES } from '../common/constants.js';
+import { getStorage } from '../common/storage.js';
 
-const COMMANDS = {
-  READ_PAGE: 'read-page'
-};
+const DEFAULT_AI_MODEL = 'gpt-4o-mini';
+const DEFAULT_AI_BASE_URL = 'https://api.openai.com/v1';
+const MAX_CONTENT_CHARS = 12000;
 
-/**
- * Handle extension icon click
- */
 chrome.action.onClicked.addListener(async (tab) => {
   try {
-    // Send message to content script to start reading
-    await chrome.tabs.sendMessage(tab.id, {
-      type: MESSAGE_TYPES.START_READING
-    });
+    if (!tab?.id) {
+      throw new Error('No active tab');
+    }
+    await triggerReadingOnTab(tab.id);
   } catch (error) {
     console.error('Error starting reading from icon click:', error);
   }
 });
 
-/**
- * Handle keyboard shortcuts
- */
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === COMMANDS.READ_PAGE) {
     try {
-      // Get active tab
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tab) {
-        await chrome.tabs.sendMessage(tab.id, {
-          type: MESSAGE_TYPES.START_READING
-        });
+      if (tab?.id) {
+        await triggerReadingOnTab(tab.id);
       }
     } catch (error) {
       console.error('Error starting reading from keyboard shortcut:', error);
@@ -53,35 +34,158 @@ chrome.commands.onCommand.addListener(async (command) => {
   }
 });
 
-/**
- * Handle messages from popup or content scripts
- */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // Handle messages that need to be forwarded to content scripts
-  if (message.type === MESSAGE_TYPES.START_READING ||
-      message.type === MESSAGE_TYPES.PAUSE_READING ||
-      message.type === MESSAGE_TYPES.RESUME_READING ||
-      message.type === MESSAGE_TYPES.STOP_READING ||
-      message.type === MESSAGE_TYPES.GET_STATUS) {
-    
-    // Forward to active tab's content script
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]) {
-        chrome.tabs.sendMessage(tabs[0].id, message, (response) => {
-          if (chrome.runtime.lastError) {
-            sendResponse({ error: chrome.runtime.lastError.message });
-          } else {
-            sendResponse(response);
-          }
-        });
-      } else {
-        sendResponse({ error: 'No active tab found' });
+  if (shouldForwardToActiveTab(message.type)) {
+    (async () => {
+      try {
+        const enrichedMessage = await enrichStartReadingMessage(message);
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab) {
+          sendResponse({ error: 'No active tab found' });
+          return;
+        }
+        const response = await chrome.tabs.sendMessage(tab.id, enrichedMessage);
+        sendResponse(response);
+      } catch (error) {
+        console.error('Error forwarding message to content script:', error);
+        sendResponse({ error: error.message });
       }
-    });
-    
-    return true; // Keep channel open for async response
+    })();
+    return true;
   }
-  
+
+  if (message.type === MESSAGE_TYPES.REQUEST_SUMMARY) {
+    (async () => {
+      try {
+        const summary = await summarizeContent(message.content, message.metadata);
+        sendResponse({ summary, type: MESSAGE_TYPES.SUMMARY_READY });
+      } catch (error) {
+        console.error('Summary request failed:', error);
+        sendResponse({ error: error.message, type: MESSAGE_TYPES.SUMMARY_ERROR });
+      }
+    })();
+    return true;
+  }
+
   return false;
 });
 
+function shouldForwardToActiveTab(type) {
+  return type === MESSAGE_TYPES.START_READING ||
+    type === MESSAGE_TYPES.PAUSE_READING ||
+    type === MESSAGE_TYPES.RESUME_READING ||
+    type === MESSAGE_TYPES.STOP_READING ||
+    type === MESSAGE_TYPES.GET_STATUS;
+}
+
+async function enrichStartReadingMessage(message) {
+  if (message.type !== MESSAGE_TYPES.START_READING || message.mode) {
+    return message;
+  }
+  const mode = await getPreferredReadingMode();
+  return { ...message, mode };
+}
+
+async function triggerReadingOnTab(tabId) {
+  const mode = await getPreferredReadingMode();
+  await chrome.tabs.sendMessage(tabId, {
+    type: MESSAGE_TYPES.START_READING,
+    mode
+  });
+}
+
+async function getPreferredReadingMode() {
+  try {
+    const stored = await getStorage(STORAGE_KEYS.READING_MODE);
+    return stored?.[STORAGE_KEYS.READING_MODE] || READING_MODES.SUMMARY;
+  } catch (error) {
+    console.warn('Unable to read stored reading mode, defaulting to summary:', error);
+    return READING_MODES.SUMMARY;
+  }
+}
+
+async function summarizeContent(content, metadata = {}) {
+  if (!content || !content.trim()) {
+    throw new Error('No content provided for summarization');
+  }
+
+  const trimmed = content.trim();
+  const truncated = trimmed.length > MAX_CONTENT_CHARS ? trimmed.slice(0, MAX_CONTENT_CHARS) : trimmed;
+  const { apiKey, model, baseUrl } = await getAiSettings();
+
+  if (!apiKey) {
+    throw new Error('Add your AI API key in the AURA Settings page to enable summaries.');
+  }
+
+  const endpointBase = (baseUrl || DEFAULT_AI_BASE_URL).replace(/\/$/, '');
+  const endpoint = `${endpointBase}/chat/completions`;
+
+  const systemPrompt = 'You are AURA, an accessibility assistant. Provide a short, empathetic description (4-6 sentences) that helps visually impaired users understand the essence, structure, and key actions on the page.';
+  const metaTitle = metadata?.title ? metadata.title : 'Untitled page';
+  const metaUrl = metadata?.url ? metadata.url : 'Unknown URL';
+  const userPrompt = `Title: ${metaTitle}\nURL: ${metaUrl}\n\nSummarize the important information, layout, and calls-to-action from this page.\n\nContent:\n${truncated}`;
+
+  const body = {
+    model: model || DEFAULT_AI_MODEL,
+    temperature: 0.2,
+    max_tokens: 320,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ]
+  };
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const errorBody = await readErrorBody(response);
+    throw new Error(`Summary API failed (${response.status}): ${errorBody}`);
+  }
+
+  const data = await response.json();
+  const summary = data?.choices?.[0]?.message?.content?.trim();
+  if (!summary) {
+    throw new Error('AI response did not include summary text');
+  }
+  return summary;
+}
+
+async function getAiSettings() {
+  try {
+    const stored = await getStorage([
+      STORAGE_KEYS.AI_API_KEY,
+      STORAGE_KEYS.AI_MODEL,
+      STORAGE_KEYS.AI_BASE_URL
+    ]);
+
+    return {
+      apiKey: stored?.[STORAGE_KEYS.AI_API_KEY] || '',
+      model: stored?.[STORAGE_KEYS.AI_MODEL] || DEFAULT_AI_MODEL,
+      baseUrl: stored?.[STORAGE_KEYS.AI_BASE_URL] || DEFAULT_AI_BASE_URL
+    };
+  } catch (error) {
+    console.error('Failed to read AI settings from storage:', error);
+    return {
+      apiKey: '',
+      model: DEFAULT_AI_MODEL,
+      baseUrl: DEFAULT_AI_BASE_URL
+    };
+  }
+}
+
+async function readErrorBody(response) {
+  try {
+    const text = await response.text();
+    return text.slice(0, 300) || 'Unknown error';
+  } catch (error) {
+    console.warn('Failed to read error body:', error);
+    return 'Unknown error';
+  }
+}
