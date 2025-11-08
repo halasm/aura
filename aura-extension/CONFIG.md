@@ -2,33 +2,32 @@
 
 ## API Keys
 
-**For the MVP version, no API keys are required!**
+**AI summaries now require an API key.**
 
-The current implementation uses the **Web Speech API** (`speechSynthesis`), which is built into modern browsers and doesn't require any external services or API keys.
+The base reading experience still uses the **Web Speech API** (`speechSynthesis`) and works offline, but the new "AI Summary" mode sends page content to your configured AI provider (OpenAI by default). Without a valid key, the extension will fall back to reading the full article.
 
-## Future Features That May Require API Keys
+## AI Summary Configuration
 
-If you plan to implement the following features from the roadmap, you'll need API keys:
+1. Open the extension's **Settings** page.
+2. Enter your **AI API key** (OpenAI-compatible) and optional custom base URL/model.
+3. The key is stored locally via `chrome.storage.local` and never leaves your machine except when calling the configured API endpoint.
 
-### AI-Powered Summaries
-- **OpenAI API** - For GPT-based summaries
-- **Anthropic API** - For Claude-based summaries
-- **Google Gemini API** - Alternative option
+### Supported Providers
+
+- **OpenAI API** (default)
+- Any OpenAI-compatible endpoint (Anthropic via proxy, Azure OpenAI, etc.) by changing the base URL.
 
 ### Advanced Features
 - Cloud-based TTS services (if you want more voices)
 - Translation services
 - Content analysis APIs
 
-## How to Add API Keys (When Needed)
+## How to Add API Keys
 
-1. Create a `.env` file in the extension root (not included in git)
-2. Add your API keys:
-   ```
-   OPENAI_API_KEY=your_key_here
-   ```
-3. Use a build tool (webpack, rollup, etc.) to inject these at build time
-4. **Never commit `.env` files to git!**
+1. Navigate to the **Options** page inside the extension.
+2. Paste your API key into the **AI API Key** field.
+3. (Optional) Change the base URL or model name if you're targeting a different provider.
+4. Click **Save Settings**. The background service worker will use these values for every summary request.
 
 ## Current Architecture
 
@@ -38,4 +37,3 @@ The extension currently:
 - ✅ Works completely offline (after initial load)
 
 No external API calls are made in the MVP version.
-

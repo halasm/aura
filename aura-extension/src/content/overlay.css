@@ -33,6 +33,19 @@
   min-height: 20px;
 }
 
+#aura-summary {
+  margin-bottom: 12px;
+  padding: 12px;
+  background: #fafafa;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: pre-line;
+}
+
 #aura-status[aria-live="polite"] {
   /* Screen reader will announce changes */
 }
@@ -114,6 +127,12 @@
     background: #2a2a2a;
     color: #ffffff;
   }
+
+  #aura-summary {
+    background: #262626;
+    border-color: #3a3a3a;
+    color: #f5f5f5;
+  }
   
   .aura-button {
     background: #1a1a1a;
@@ -135,4 +154,3 @@
     color: #888888;
   }
 }
-

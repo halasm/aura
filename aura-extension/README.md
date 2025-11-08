@@ -22,8 +22,9 @@ Currently, placeholder files are present. Replace them with actual icon images b
 
 1. Click the AURA extension icon in the Chrome toolbar
 2. Click "Read this page" to start reading
-3. Use the on-page overlay controls to pause, resume, or stop reading
-4. Access settings via the "Settings" link in the popup
+3. Choose **AI summary** or **Full article** in the popup before starting
+4. Use the on-page overlay controls to pause, resume, or stop reading
+5. Access settings via the "Settings" link in the popup
 
 ## Keyboard Shortcut
 
@@ -33,8 +34,15 @@ Currently, placeholder files are present. Replace them with actual icon images b
 
 - Extracts main content from web pages
 - Reads content aloud using Web Speech API
+- AI-generated summaries (requires API key) or full-article playback
 - On-page overlay with accessible controls
 - Customizable speech settings (rate, pitch, volume, voice)
 - Full keyboard navigation support
 - ARIA-compliant accessibility features
 
+## AI Summary Mode
+
+- Open the **Settings** page and provide an OpenAI-compatible API key (stored locally in `chrome.storage.local`).
+- Optionally change the base URL/model to point at Azure OpenAI or other compatible services.
+- When "AI summary" mode is selected in the popup, the content script sends the extracted DOM text to the service worker, which calls the configured API and displays the returned summary inside the overlay before reading it aloud.
+- Without a key, the extension automatically falls back to reading the full article.

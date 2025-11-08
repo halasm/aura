@@ -84,6 +84,42 @@
           </select>
         </div>
       </section>
+
+      <section class="settings-section">
+        <h2>AI Summary Settings</h2>
+        <p class="section-help">Configure the API used to generate on-page descriptions. Keys are stored locally on your device.</p>
+
+        <div class="setting-group">
+          <label for="ai-api-key">AI API Key</label>
+          <input
+            type="password"
+            id="ai-api-key"
+            class="text-input"
+            placeholder="sk-..."
+            autocomplete="off"
+          >
+        </div>
+
+        <div class="setting-group">
+          <label for="ai-model">Model</label>
+          <input
+            type="text"
+            id="ai-model"
+            class="text-input"
+            placeholder="gpt-4o-mini"
+          >
+        </div>
+
+        <div class="setting-group">
+          <label for="ai-base-url">API Base URL</label>
+          <input
+            type="text"
+            id="ai-base-url"
+            class="text-input"
+            placeholder="https://api.openai.com/v1"
+          >
+        </div>
+      </section>
       
       <div class="actions">
         <button id="save-button" class="primary-button">Save Settings</button>
@@ -97,4 +133,3 @@
   <script type="module" src="options.js"></script>
 </body>
 </html>
-

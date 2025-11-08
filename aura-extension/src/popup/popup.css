@@ -44,6 +44,37 @@ main {
   gap: 12px;
 }
 
+.mode-group {
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mode-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333333;
+}
+
+.mode-options {
+  display: flex;
+  gap: 12px;
+}
+
+.mode-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.mode-option input[type="radio"] {
+  accent-color: #000000;
+}
+
 .primary-button {
   width: 100%;
   padding: 12px 20px;
@@ -162,6 +193,18 @@ main {
     background: #2a2a2a;
     color: #ffffff;
   }
+
+  .mode-group {
+    border-color: #333333;
+  }
+
+  .mode-label {
+    color: #dddddd;
+  }
+
+  .mode-option input[type="radio"] {
+    accent-color: #ffffff;
+  }
   
   .primary-button {
     background: #ffffff;
@@ -193,4 +236,3 @@ main {
     color: #66b3ff;
   }
 }
-

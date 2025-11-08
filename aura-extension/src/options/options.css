@@ -37,6 +37,12 @@ header h1 {
   color: #666666;
 }
 
+.section-help {
+  font-size: 13px;
+  color: #555555;
+  margin-bottom: 16px;
+}
+
 main {
   display: flex;
   flex-direction: column;
@@ -124,6 +130,7 @@ input[type="range"]:focus {
   margin-top: 4px;
 }
 
+.text-input,
 select {
   width: 100%;
   padding: 10px 12px;
@@ -136,6 +143,7 @@ select {
   cursor: pointer;
 }
 
+.text-input:focus,
 select:focus {
   outline: 3px solid #0066cc;
   outline-offset: 2px;
@@ -239,6 +247,16 @@ select:focus {
     color: #ffffff;
     border-color: #ffffff;
   }
+
+  .text-input {
+    background: #1a1a1a;
+    color: #ffffff;
+    border-color: #ffffff;
+  }
+
+  .section-help {
+    color: #bbbbbb;
+  }
   
   .primary-button {
     background: #ffffff;
@@ -278,4 +296,3 @@ select:focus {
     border-color: #5a2d2d;
   }
 }
-

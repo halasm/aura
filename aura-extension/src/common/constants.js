@@ -10,6 +10,9 @@ export const MESSAGE_TYPES = {
   RESUME_READING: 'RESUME_READING',
   STOP_READING: 'STOP_READING',
   GET_STATUS: 'GET_STATUS',
+  REQUEST_SUMMARY: 'REQUEST_SUMMARY',
+  SUMMARY_READY: 'SUMMARY_READY',
+  SUMMARY_ERROR: 'SUMMARY_ERROR',
   STATUS_UPDATE: 'STATUS_UPDATE',
   CONTENT_EXTRACTED: 'CONTENT_EXTRACTED',
   READING_COMPLETE: 'READING_COMPLETE',
@@ -21,7 +24,11 @@ export const STORAGE_KEYS = {
   SPEECH_RATE: 'speechRate',
   SPEECH_PITCH: 'speechPitch',
   SPEECH_VOICE: 'speechVoice',
-  SPEECH_VOLUME: 'speechVolume'
+  SPEECH_VOLUME: 'speechVolume',
+  AI_API_KEY: 'aiApiKey',
+  AI_MODEL: 'aiModel',
+  AI_BASE_URL: 'aiBaseUrl',
+  READING_MODE: 'readingMode'
 };
 
 // Default speech settings
@@ -49,6 +56,7 @@ export const OVERLAY_IDS = {
 // Reading status
 export const READING_STATUS = {
   IDLE: 'idle',
+  SUMMARIZING: 'summarizing',
   READING: 'reading',
   PAUSED: 'paused',
   STOPPED: 'stopped',
@@ -56,3 +64,7 @@ export const READING_STATUS = {
   ERROR: 'error'
 };
 
+export const READING_MODES = {
+  SUMMARY: 'summary',
+  FULL: 'full'
+};

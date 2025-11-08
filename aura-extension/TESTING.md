@@ -35,7 +35,14 @@
 - Click "Save Settings"
 - Start reading again to verify settings are applied
 
-### 5. Different Page Types Test
+### 5. AI Summary Test
+- In Settings, paste a valid OpenAI-compatible API key and click "Save Settings"
+- In the popup, ensure **AI summary** mode is selected
+- Click "Read this page"
+- Verify the overlay displays a "Summarizing…" status followed by the generated summary block
+- Confirm the summary is spoken aloud before/without the full article
+
+### 6. Different Page Types Test
 - Test on pages with:
   - `<main>` element
   - `<article>` element
@@ -56,6 +63,7 @@ The extension uses ES6 modules which may not work directly in Manifest V3 conten
 - **No sound**: Check system volume and browser permissions
 - **Overlay not appearing**: Check console for CSS loading errors
 - **Content not extracted**: Check if page has readable content (some pages may be mostly JavaScript-rendered)
+- **Summary errors**: Ensure an API key is saved, the key has access to the requested model, and the device has network connectivity.
 
 ## Expected Behavior
 
@@ -64,8 +72,8 @@ The extension uses ES6 modules which may not work directly in Manifest V3 conten
 ✅ Popup opens and shows controls
 ✅ Reading starts when triggered
 ✅ Overlay appears with correct status
+✅ Summary block appears (when AI mode is enabled) and falls back gracefully when disabled
 ✅ Speech synthesis works
 ✅ Controls (pause/resume/stop) function correctly
 ✅ Settings page loads and saves preferences
 ✅ Keyboard shortcut works
-
