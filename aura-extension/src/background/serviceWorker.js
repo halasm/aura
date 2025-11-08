@@ -3,7 +3,22 @@
  * Handles extension icon clicks, keyboard shortcuts, message routing
  */
 
-import { MESSAGE_TYPES, COMMANDS } from '../common/constants.js';
+// Message types (inline to avoid ES module issues)
+const MESSAGE_TYPES = {
+  START_READING: 'START_READING',
+  PAUSE_READING: 'PAUSE_READING',
+  RESUME_READING: 'RESUME_READING',
+  STOP_READING: 'STOP_READING',
+  GET_STATUS: 'GET_STATUS',
+  STATUS_UPDATE: 'STATUS_UPDATE',
+  CONTENT_EXTRACTED: 'CONTENT_EXTRACTED',
+  READING_COMPLETE: 'READING_COMPLETE',
+  READING_ERROR: 'READING_ERROR'
+};
+
+const COMMANDS = {
+  READ_PAGE: 'read-page'
+};
 
 /**
  * Handle extension icon click

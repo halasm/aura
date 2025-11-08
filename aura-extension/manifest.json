@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AURA – Assistive Universal Reading Assistant",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "Helps users with visual, motor, or social impairments understand web pages through accessible, natural controls.",
   "permissions": [
     "scripting",
@@ -45,7 +45,10 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "src/content/overlay.css"
+        "src/content/overlay.css",
+        "src/content/*.js",
+        "src/common/*.js",
+        "src/speech/*.js"
       ],
       "matches": ["<all_urls>"]
     }

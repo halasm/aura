@@ -2,7 +2,7 @@
  * Popup initialization and controls
  */
 
-import { sendMessage } from '../common/messaging.js';
+import { sendMessage, sendMessageToTab } from '../common/messaging.js';
 import { MESSAGE_TYPES, READING_STATUS } from '../common/constants.js';
 
 let currentStatus = READING_STATUS.IDLE;
@@ -83,6 +83,65 @@ function updateButtons(status) {
 }
 
 /**
+ * Check if we can inject scripts into the tab
+ * @param {number} tabId - Tab ID
+ * @returns {Promise<boolean>} True if script can be injected
+ */
+async function canInjectScript(tabId) {
+  try {
+    // Try to get tab info - if it fails, we can't inject
+    const tab = await chrome.tabs.get(tabId);
+    if (!tab.url) return false;
+    
+    // Check if URL is injectable (not chrome://, chrome-extension://, etc.)
+    const url = new URL(tab.url);
+    if (url.protocol === 'chrome:' || url.protocol === 'chrome-extension:' || url.protocol === 'moz-extension:') {
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Inject content script if needed
+ * @param {number} tabId - Tab ID
+ */
+async function ensureContentScript(tabId) {
+  try {
+    // Try to ping the content script
+    await sendMessageToTab(tabId, MESSAGE_TYPES.GET_STATUS);
+    return true; // Content script is ready
+  } catch (error) {
+    // Content script not ready, try to inject it
+    try {
+      if (await canInjectScript(tabId)) {
+        await chrome.scripting.executeScript({
+          target: { tabId: tabId },
+          files: ['src/content/contentScript.js']
+        });
+        // Wait a bit for the script to initialize
+        await new Promise(resolve => setTimeout(resolve, 200));
+        // Try to ping again to confirm it's ready
+        try {
+          await sendMessageToTab(tabId, MESSAGE_TYPES.GET_STATUS);
+          return true;
+        } catch (pingError) {
+          console.error('Content script injected but not responding:', pingError);
+          return false;
+        }
+      }
+      return false;
+    } catch (injectError) {
+      console.error('Could not inject content script:', injectError);
+      return false;
+    }
+  }
+}
+
+/**
  * Start reading
  */
 async function startReading() {
@@ -95,13 +154,27 @@ async function startReading() {
       throw new Error('No active tab found');
     }
 
+    // Check if we can inject scripts
+    if (!(await canInjectScript(tab.id))) {
+      throw new Error('Cannot read this page. Please navigate to a regular webpage (not chrome:// or extension pages).');
+    }
+
+    // Ensure content script is ready
+    const scriptReady = await ensureContentScript(tab.id);
+    if (!scriptReady) {
+      throw new Error('Content script failed to load. Please refresh the page and try again.');
+    }
+
     await sendMessageToTab(tab.id, MESSAGE_TYPES.START_READING);
     updateStatus(READING_STATUS.READING);
     updateButtons(READING_STATUS.READING);
   } catch (error) {
     console.error('Error starting reading:', error);
+    const errorMessage = error.message || 'Failed to start reading';
     updateStatus(READING_STATUS.ERROR);
     updateButtons(READING_STATUS.ERROR);
+    // Show error message to user
+    statusElement.textContent = `Error: ${errorMessage}`;
   }
 }
 
@@ -118,6 +191,9 @@ async function pauseReading() {
     }
   } catch (error) {
     console.error('Error pausing reading:', error);
+    // If connection fails, content script might have been removed
+    updateStatus(READING_STATUS.ERROR);
+    updateButtons(READING_STATUS.ERROR);
   }
 }
 
@@ -134,6 +210,8 @@ async function resumeReading() {
     }
   } catch (error) {
     console.error('Error resuming reading:', error);
+    updateStatus(READING_STATUS.ERROR);
+    updateButtons(READING_STATUS.ERROR);
   }
 }
 
@@ -150,6 +228,9 @@ async function stopReading() {
     }
   } catch (error) {
     console.error('Error stopping reading:', error);
+    // Don't show error for stop - just reset to idle
+    updateStatus(READING_STATUS.IDLE);
+    updateButtons(READING_STATUS.IDLE);
   }
 }
 
@@ -171,21 +252,6 @@ async function refreshStatus() {
     updateStatus(READING_STATUS.IDLE);
     updateButtons(READING_STATUS.IDLE);
   }
-}
-
-/**
- * Helper to send message to tab
- */
-function sendMessageToTab(tabId, type, data = {}) {
-  return new Promise((resolve, reject) => {
-    chrome.tabs.sendMessage(tabId, { type, ...data }, (response) => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-      } else {
-        resolve(response);
-      }
-    });
-  });
 }
 
 // Set up event listeners

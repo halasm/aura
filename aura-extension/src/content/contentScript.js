@@ -1,17 +1,74 @@
 /**
  * Main entry point that coordinates domAnalyzer, pageReader, and overlay
+ * Uses dynamic imports for Manifest V3 compatibility
  */
 
-import { extractPageContent } from './domAnalyzer.js';
-import { pageReader } from './pageReader.js';
-import { overlay } from './overlay.js';
-import { onContentMessage } from '../common/messaging.js';
-import { MESSAGE_TYPES, READING_STATUS } from '../common/constants.js';
+let extractPageContent, pageReader, overlay, onContentMessage, MESSAGE_TYPES, READING_STATUS;
+let modulesLoaded = false;
+
+/**
+ * Load all required modules dynamically
+ */
+async function loadModules() {
+  if (modulesLoaded) return;
+  
+  try {
+    // Use chrome.runtime.getURL to get the correct extension URL
+    // chrome.runtime.getURL returns something like: chrome-extension://<id>/src/
+    const basePath = chrome.runtime.getURL('src/');
+    console.log('Loading modules from base path:', basePath);
+    
+    // Construct full paths - using URL constructor ensures proper path resolution
+    const domAnalyzerPath = new URL('content/domAnalyzer.js', basePath).href;
+    const pageReaderPath = new URL('content/pageReader.js', basePath).href;
+    const overlayPath = new URL('content/overlay.js', basePath).href;
+    const messagingPath = new URL('common/messaging.js', basePath).href;
+    const constantsPath = new URL('common/constants.js', basePath).href;
+    
+    console.log('Loading modules:', {
+      domAnalyzer: domAnalyzerPath,
+      pageReader: pageReaderPath,
+      overlay: overlayPath,
+      messaging: messagingPath,
+      constants: constantsPath
+    });
+    
+    // Load modules - these will automatically resolve their own imports
+    const [domAnalyzerModule, pageReaderModule, overlayModule, messagingModule, constantsModule] = await Promise.all([
+      import(domAnalyzerPath),
+      import(pageReaderPath),
+      import(overlayPath),
+      import(messagingPath),
+      import(constantsPath)
+    ]);
+    
+    extractPageContent = domAnalyzerModule.extractPageContent;
+    pageReader = pageReaderModule.pageReader;
+    overlay = overlayModule.overlay;
+    onContentMessage = messagingModule.onContentMessage;
+    MESSAGE_TYPES = constantsModule.MESSAGE_TYPES;
+    READING_STATUS = constantsModule.READING_STATUS;
+    
+    modulesLoaded = true;
+    console.log('All modules loaded successfully');
+  } catch (error) {
+    console.error('Error loading modules:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    console.error('Base path was:', chrome.runtime.getURL('src/'));
+    throw error;
+  }
+}
 
 /**
  * Initialize the content script
  */
-function init() {
+async function init() {
+  await loadModules();
+  
   // Set up overlay with callbacks
   overlay.setCallbacks({
     onPause: () => {
@@ -46,6 +103,8 @@ function init() {
  */
 async function handleMessage(message, sender, sendResponse) {
   try {
+    await loadModules(); // Ensure modules are loaded
+    
     switch (message.type) {
       case MESSAGE_TYPES.START_READING:
         await startReading();
@@ -89,6 +148,8 @@ async function handleMessage(message, sender, sendResponse) {
  */
 async function startReading() {
   try {
+    await loadModules(); // Ensure modules are loaded
+    
     // Extract content from page
     const content = extractPageContent();
 
@@ -108,7 +169,7 @@ async function startReading() {
     await pageReader.startReading(content);
   } catch (error) {
     console.error('Error starting reading:', error);
-    if (overlay.exists()) {
+    if (modulesLoaded && overlay && overlay.exists()) {
       overlay.updateStatus(READING_STATUS.ERROR);
       overlay.updateButtons(READING_STATUS.ERROR);
     }
@@ -118,8 +179,14 @@ async function startReading() {
 
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', () => {
+    init().catch(error => {
+      console.error('Failed to initialize AURA content script:', error);
+    });
+  });
 } else {
-  init();
+  init().catch(error => {
+    console.error('Failed to initialize AURA content script:', error);
+  });
 }
 
