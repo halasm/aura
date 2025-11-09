@@ -109,6 +109,41 @@ main {
   border-color: #666666;
 }
 
+.secondary-button {
+  width: 100%;
+  padding: 10px 18px;
+  background: #ffffff;
+  color: #000000;
+  border: 2px solid #000000;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.secondary-button:hover {
+  background: #f5f5f5;
+}
+
+.secondary-button:focus {
+  outline: 3px solid #0066cc;
+  outline-offset: 2px;
+}
+
+.secondary-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #f5f5f5;
+  color: #666666;
+}
+
+.secondary-button.listening {
+  background: #e3f2ff;
+  border-color: #0066cc;
+  color: #003c80;
+}
+
 .status {
   padding: 8px 12px;
   background: #f0f0f0;
@@ -116,6 +151,17 @@ main {
   text-align: center;
   font-size: 13px;
   min-height: 20px;
+}
+
+.voice-status {
+  min-height: 20px;
+  font-size: 12px;
+  color: #555555;
+  text-align: center;
+}
+
+.voice-status.error {
+  color: #a40000;
 }
 
 .controls {
@@ -215,6 +261,22 @@ main {
   .primary-button:hover {
     background: #cccccc;
     border-color: #cccccc;
+  }
+
+  .secondary-button {
+    background: #1a1a1a;
+    color: #ffffff;
+    border-color: #ffffff;
+  }
+
+  .secondary-button:hover {
+    background: #2a2a2a;
+  }
+
+  .secondary-button:disabled {
+    background: #2a2a2a;
+    color: #888888;
+    border-color: #555555;
   }
   
   .control-button {

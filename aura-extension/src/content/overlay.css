@@ -10,7 +10,7 @@
   border: 2px solid #000000;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  padding: 16px;
+  padding: 24px 16px 16px 16px;
   min-width: 280px;
   max-width: 400px;
   z-index: 999999;
@@ -97,6 +97,44 @@
   color: #666666;
 }
 
+.aura-exit-button {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid #000000;
+  background: #ffffff;
+  color: #000000;
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.aura-exit-button:hover {
+  background: #000000;
+  color: #ffffff;
+}
+
+.aura-exit-button:focus {
+  outline: 3px solid #0066cc;
+  outline-offset: 2px;
+}
+
+.aura-exit-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #f0f0f0;
+  color: #666666;
+  border-color: #cccccc;
+}
+
 /* High contrast mode support */
 @media (prefers-contrast: high) {
   #aura-overlay {
@@ -152,5 +190,22 @@
   .aura-button:disabled {
     background: #2a2a2a;
     color: #888888;
+  }
+
+  .aura-exit-button {
+    border-color: #ffffff;
+    background: #1a1a1a;
+    color: #ffffff;
+  }
+  
+  .aura-exit-button:hover {
+    background: #ffffff;
+    color: #1a1a1a;
+  }
+  
+  .aura-exit-button:disabled {
+    background: #2a2a2a;
+    color: #888888;
+    border-color: #555555;
   }
 }
