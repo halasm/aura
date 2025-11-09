@@ -444,6 +444,15 @@ async function handleVoiceTranscript(transcript) {
     return;
   }
 
+  const openCommand = extractOpenWebsiteCommand(normalized);
+  if (openCommand) {
+    const opened = await openWebsiteFromVoice(openCommand);
+    if (opened) {
+      updateVoiceStatus(`Opening ${opened}.`);
+    }
+    return;
+  }
+
   const desiredMode = determineModeFromTranscript(normalized);
   if (!desiredMode) {
     updateVoiceStatus('Please say “read this page”, “describe this page”, or “summarize this page”.', 'error');
@@ -463,6 +472,45 @@ function determineModeFromTranscript(normalized) {
     return READING_MODES.FULL;
   }
   return null;
+}
+
+function extractOpenWebsiteCommand(normalized) {
+  const openMatch = normalized.match(/(?:open|go to|visit|launch)\s+(.+)/);
+  if (!openMatch) {
+    return null;
+  }
+  const remainder = openMatch[1]
+    .replace(/^(the\s+)/, '')
+    .replace(/\bwebsite\b|\bsite\b/g, '')
+    .trim();
+  if (!remainder) {
+    return null;
+  }
+  return remainder;
+}
+
+async function openWebsiteFromVoice(query) {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: MESSAGE_TYPES.OPEN_WEBSITE,
+      query,
+      options: { newTab: false }
+    });
+
+    if (!response?.success) {
+      updateVoiceStatus(response?.error || 'Unable to open that site.', 'error');
+      return null;
+    }
+
+    const displayName = response.matched
+      ? new URL(response.finalUrl).hostname
+      : `results for “${query}”`;
+    return displayName;
+  } catch (error) {
+    console.error('Failed to open website from voice command:', error);
+    updateVoiceStatus('Unable to open that site right now.', 'error');
+    return null;
+  }
 }
 
 async function ensureMicPermission() {
