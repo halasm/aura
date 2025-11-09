@@ -55,7 +55,7 @@ class Overlay {
     // Create pause button
     this.pauseButton = document.createElement('button');
     this.pauseButton.id = OVERLAY_IDS.PAUSE_BUTTON;
-    this.pauseButton.className = 'aura-button';
+    this.pauseButton.className = 'aura-button primary-action';
     this.pauseButton.textContent = 'Pause';
     this.pauseButton.setAttribute('aria-label', 'Pause reading');
     this.pauseButton.addEventListener('click', () => {
@@ -71,7 +71,7 @@ class Overlay {
     // Create resume button
     this.resumeButton = document.createElement('button');
     this.resumeButton.id = OVERLAY_IDS.RESUME_BUTTON;
-    this.resumeButton.className = 'aura-button';
+    this.resumeButton.className = 'aura-button primary-action';
     this.resumeButton.textContent = 'Resume';
     this.resumeButton.setAttribute('aria-label', 'Resume reading');
     this.resumeButton.style.display = 'none'; // Hidden initially
@@ -88,7 +88,7 @@ class Overlay {
     // Create stop button
     this.stopButton = document.createElement('button');
     this.stopButton.id = OVERLAY_IDS.STOP_BUTTON;
-    this.stopButton.className = 'aura-button';
+    this.stopButton.className = 'aura-button primary-action';
     this.stopButton.textContent = 'Stop';
     this.stopButton.setAttribute('aria-label', 'Stop reading');
     this.stopButton.addEventListener('click', () => {
