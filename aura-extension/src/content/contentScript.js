@@ -19,6 +19,9 @@ if (window.__AURA_CONTENT_SCRIPT_LOADED__) {
   const MIC_PERMISSION_IFRAME_ID = 'aura-mic-permission-iframe';
   let micPermissionPromise = null;
   let micPermissionGranted = false;
+  let customZoomLevel = 1;
+  const MIN_ZOOM = 0.5;
+  const MAX_ZOOM = 3;
 
   /**
    * Load all required modules dynamically
@@ -178,6 +181,16 @@ if (window.__AURA_CONTENT_SCRIPT_LOADED__) {
           sendResponse({ success: true });
           break;
 
+        case MESSAGE_TYPES.ZOOM_PAGE:
+          adjustZoomLevel(message.payload || {});
+          sendResponse({ success: true, zoom: customZoomLevel });
+          break;
+
+        case MESSAGE_TYPES.SCROLL_PAGE:
+          scrollPage(message.payload || {});
+          sendResponse({ success: true });
+          break;
+
         default:
           sendResponse({ error: 'Unknown message type' });
       }
@@ -264,6 +277,48 @@ if (window.__AURA_CONTENT_SCRIPT_LOADED__) {
     });
 
     return micPermissionPromise;
+  }
+
+  function adjustZoomLevel({ percentDelta = 0, absoluteZoom = null, reset = false } = {}) {
+    if (reset) {
+      customZoomLevel = 1;
+      document.documentElement.style.zoom = '';
+      return;
+    }
+
+    if (typeof absoluteZoom === 'number') {
+      customZoomLevel = clampZoom(absoluteZoom);
+    } else {
+      const delta = (percentDelta || 0) / 100;
+      customZoomLevel = clampZoom(customZoomLevel + delta);
+    }
+
+    document.documentElement.style.zoom = customZoomLevel;
+  }
+
+  function clampZoom(value) {
+    return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
+  }
+
+  function scrollPage({ direction = 'down', amountPercent = 50, position = null } = {}) {
+    if (position === 'top') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    if (position === 'bottom') {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      return;
+    }
+
+    const percent = Math.max(5, Math.min(100, amountPercent));
+    const delta = (direction === 'left' || direction === 'right')
+      ? (window.innerWidth * percent) / 100
+      : (window.innerHeight * percent) / 100;
+
+    const topDelta = direction === 'up' ? -delta : direction === 'down' ? delta : 0;
+    const leftDelta = direction === 'left' ? -delta : direction === 'right' ? delta : 0;
+
+    window.scrollBy({ top: topDelta, left: leftDelta, behavior: 'smooth' });
   }
 
   /**

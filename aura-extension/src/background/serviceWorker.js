@@ -232,7 +232,8 @@ async function openWebsite(rawQuery = '', options = {}) {
   }
 
   const match = findKnownSite(query);
-  const urlToOpen = match || buildSearchUrl(query);
+  const aiResolvedUrl = match ? null : await resolveWebsiteWithAi(query);
+  const urlToOpen = match || aiResolvedUrl || buildSearchUrl(query);
 
   const openInNewTab = options?.newTab ?? false;
   if (openInNewTab) {
@@ -247,9 +248,9 @@ async function openWebsite(rawQuery = '', options = {}) {
   }
 
   return {
-    matchedUrl: match || '',
+    matchedUrl: match || aiResolvedUrl || '',
     finalUrl: urlToOpen,
-    matched: Boolean(match)
+    matched: Boolean(match || aiResolvedUrl)
   };
 }
 
@@ -276,4 +277,74 @@ function sanitizeSiteQuery(input = '') {
 
 function buildSearchUrl(query) {
   return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+}
+
+async function resolveWebsiteWithAi(query) {
+  if (!query || !query.trim()) {
+    return null;
+  }
+
+  const { apiKey, model, baseUrl } = await getAiSettings();
+  if (!apiKey) {
+    return null;
+  }
+
+  const endpointBase = (baseUrl || DEFAULT_AI_BASE_URL).replace(/\/$/, '');
+  const endpoint = `${endpointBase}/chat/completions`;
+
+  const systemPrompt = 'You help map informal user requests to well-known website URLs. Respond with a single absolute HTTPS URL if you can confidently identify the requested site, otherwise respond with the single word UNKNOWN.';
+  const userPrompt = `User said: "${query}".\nReturn only the canonical URL (e.g., https://www.youtube.com/).`;
+
+  const body = {
+    model: model || DEFAULT_AI_MODEL,
+    temperature: 0,
+    max_tokens: 40,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ]
+  };
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const errorBody = await readErrorBody(response);
+      console.warn('AI site resolution failed:', errorBody);
+      return null;
+    }
+
+    const data = await response.json();
+    const text = data?.choices?.[0]?.message?.content?.trim();
+    if (!text || text.toUpperCase() === 'UNKNOWN') {
+      return null;
+    }
+
+    const normalized = normalizeUrl(text);
+    return normalized;
+  } catch (error) {
+    console.error('resolveWebsiteWithAi error:', error);
+    return null;
+  }
+}
+
+function normalizeUrl(candidate = '') {
+  let urlText = candidate.trim();
+  if (!urlText) return null;
+  if (!/^https?:\/\//i.test(urlText)) {
+    urlText = `https://${urlText}`;
+  }
+  try {
+    const parsed = new URL(urlText);
+    return parsed.href;
+  } catch {
+    return null;
+  }
 }

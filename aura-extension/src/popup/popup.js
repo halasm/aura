@@ -19,10 +19,12 @@ const stopButton = document.getElementById('stop-button');
 const optionsLink = document.getElementById('options-link');
 const modeRadios = document.querySelectorAll('input[name="reading-mode"]');
 const voiceButton = document.getElementById('voice-command-button');
+const voiceButtonLabel = voiceButton?.querySelector('.voice-toggle-label') || null;
 const voiceStatus = document.getElementById('voice-status');
 
 let recognition = null;
 let isListening = false;
+let listeningEnabled = false;
 let voiceSupported = false;
 let micPermissionReady = false;
 
@@ -153,7 +155,7 @@ async function ensureContentScript(tabId) {
 /**
  * Start reading
  */
-async function startReading() {
+async function startReading(modeOverride = null) {
   try {
     updateStatus(READING_STATUS.IDLE);
     updateButtons(READING_STATUS.IDLE);
@@ -174,7 +176,7 @@ async function startReading() {
       throw new Error('Content script failed to load. Please refresh the page and try again.');
     }
 
-    const mode = currentMode;
+    const mode = modeOverride || currentMode;
     await sendMessageToTab(tab.id, MESSAGE_TYPES.START_READING, { mode });
     updateStatus(READING_STATUS.READING);
     updateButtons(READING_STATUS.READING);
@@ -198,6 +200,7 @@ async function pauseReading() {
       await sendMessageToTab(tab.id, MESSAGE_TYPES.PAUSE_READING);
       updateStatus(READING_STATUS.PAUSED);
       updateButtons(READING_STATUS.PAUSED);
+      updateVoiceStatus('Paused reading.');
     }
   } catch (error) {
     console.error('Error pausing reading:', error);
@@ -217,6 +220,7 @@ async function resumeReading() {
       await sendMessageToTab(tab.id, MESSAGE_TYPES.RESUME_READING);
       updateStatus(READING_STATUS.READING);
       updateButtons(READING_STATUS.READING);
+      updateVoiceStatus('Resuming reading.');
     }
   } catch (error) {
     console.error('Error resuming reading:', error);
@@ -235,6 +239,7 @@ async function stopReading() {
       await sendMessageToTab(tab.id, MESSAGE_TYPES.STOP_READING);
       updateStatus(READING_STATUS.STOPPED);
       updateButtons(READING_STATUS.STOPPED);
+      updateVoiceStatus('Stopped reading.');
     }
   } catch (error) {
     console.error('Error stopping reading:', error);
@@ -354,25 +359,48 @@ function initVoiceCommands() {
   recognition.lang = 'en-US';
   recognition.interimResults = false;
   recognition.maxAlternatives = 1;
+  recognition.continuous = true;
 
   recognition.addEventListener('start', () => {
     isListening = true;
-    setVoiceButtonListening(true);
-    updateVoiceStatus('Listening…');
+    if (listeningEnabled) {
+      setVoiceButtonListening(true);
+      updateVoiceStatus('Listening for voice commands… tap to stop.');
+    }
   });
 
   recognition.addEventListener('end', () => {
     isListening = false;
-    setVoiceButtonListening(false);
-    updateVoiceStatus('');
+    if (listeningEnabled) {
+      // Auto-restart to keep continuous listening until user stops it
+      setVoiceButtonListening(true);
+      setTimeout(() => {
+        if (listeningEnabled) {
+          try {
+            recognition.start();
+          } catch (error) {
+            console.warn('Unable to restart recognition, disabling listening:', error);
+            listeningEnabled = false;
+            setVoiceButtonListening(false);
+            updateVoiceStatus('Voice recognition stopped due to an error.', 'error');
+          }
+        }
+      }, 250);
+    } else {
+      setVoiceButtonListening(false);
+      updateVoiceStatus('');
+    }
   });
 
   recognition.addEventListener('error', (event) => {
     console.error('Voice recognition error:', event.error);
     isListening = false;
-    setVoiceButtonListening(false);
+    if (!listeningEnabled) {
+      setVoiceButtonListening(false);
+    }
     if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
       updateVoiceStatus('Microphone access is blocked. Allow microphone permissions for AURA in Chrome and try again.', 'error');
+      listeningEnabled = false;
       if (voiceButton) {
         voiceButton.disabled = true;
         voiceButton.title = 'Microphone permission is blocked';
@@ -383,7 +411,14 @@ function initVoiceCommands() {
   });
 
   recognition.addEventListener('result', async (event) => {
-    const transcript = event?.results?.[0]?.[0]?.transcript?.trim();
+    const resultIndex = typeof event.resultIndex === 'number'
+      ? event.resultIndex
+      : (event.results?.length || 1) - 1;
+    const result = event.results?.[resultIndex];
+    if (!result || !result.isFinal) {
+      return;
+    }
+    const transcript = result[0]?.transcript?.trim();
     if (!transcript) {
       updateVoiceStatus('Sorry, I did not catch that.', 'error');
       return;
@@ -394,17 +429,32 @@ function initVoiceCommands() {
   voiceSupported = true;
   voiceButton.addEventListener('click', async () => {
     if (!voiceSupported) return;
-    if (isListening) {
-      recognition.stop();
-      return;
-    }
 
-    const permissionGranted = await ensureMicPermission();
-    if (!permissionGranted) {
-      return;
+    if (!listeningEnabled) {
+      const permissionGranted = await ensureMicPermission();
+      if (!permissionGranted) {
+        return;
+      }
+      listeningEnabled = true;
+      updateVoiceStatus('Listening for voice commands… tap to stop.');
+      try {
+        recognition.start();
+      } catch (error) {
+        console.error('Failed to start recognition:', error);
+        listeningEnabled = false;
+        setVoiceButtonListening(false);
+        updateVoiceStatus('Unable to start voice recognition.', 'error');
+      }
+    } else {
+      listeningEnabled = false;
+      updateVoiceStatus('Voice commands paused.');
+      try {
+        recognition.stop();
+      } catch (error) {
+        console.warn('Error stopping recognition:', error);
+      }
+      setVoiceButtonListening(false);
     }
-
-    recognition.start();
   });
 
   updateVoiceStatus('Tap voice command to speak.');
@@ -413,7 +463,12 @@ function initVoiceCommands() {
 function setVoiceButtonListening(listening) {
   if (!voiceButton) return;
   voiceButton.classList.toggle('listening', listening);
-  voiceButton.textContent = listening ? 'Listening… (tap to stop)' : '🎙️ Voice command';
+  voiceButton.setAttribute('aria-pressed', listening ? 'true' : 'false');
+  if (voiceButtonLabel) {
+    voiceButtonLabel.textContent = listening ? 'Listening… (tap to stop)' : '🎙️ Voice command';
+  } else {
+    voiceButton.textContent = listening ? 'Listening… (tap to stop)' : '🎙️ Voice command';
+  }
 }
 
 function updateVoiceStatus(message, type = '') {
@@ -424,6 +479,9 @@ function updateVoiceStatus(message, type = '') {
 
 async function handleVoiceTranscript(transcript) {
   const normalized = transcript.toLowerCase();
+  if (isSystemFeedback(normalized)) {
+    return;
+  }
   updateVoiceStatus(`Heard: “${transcript}”`);
 
   if (/(stop|cancel|halt)/.test(normalized)) {
@@ -444,6 +502,24 @@ async function handleVoiceTranscript(transcript) {
     return;
   }
 
+  const zoomCommand = extractZoomCommand(normalized);
+  if (zoomCommand) {
+    const zoomResult = await sendZoomCommand(zoomCommand);
+    if (zoomResult) {
+      updateVoiceStatus(zoomResult);
+    }
+    return;
+  }
+
+  const scrollCommand = extractScrollCommand(normalized);
+  if (scrollCommand) {
+    const scrolled = await sendScrollCommand(scrollCommand);
+    if (scrolled) {
+      updateVoiceStatus(scrolled);
+    }
+    return;
+  }
+
   const openCommand = extractOpenWebsiteCommand(normalized);
   if (openCommand) {
     const opened = await openWebsiteFromVoice(openCommand);
@@ -460,7 +536,7 @@ async function handleVoiceTranscript(transcript) {
   }
 
   await setMode(desiredMode);
-  await startReading();
+  await startReading(desiredMode);
   updateVoiceStatus(desiredMode === READING_MODES.SUMMARY ? 'Describing this page.' : 'Reading the full page.');
 }
 
@@ -472,6 +548,54 @@ function determineModeFromTranscript(normalized) {
     return READING_MODES.FULL;
   }
   return null;
+}
+
+function extractZoomCommand(normalized) {
+  if (normalized.includes('reset zoom') || normalized.includes('default zoom')) {
+    return { reset: true };
+  }
+
+  const zoomIn = /(zoom in|make it bigger|magnify|increase zoom|bigger)/.test(normalized);
+  const zoomOut = /(zoom out|make it smaller|reduce zoom|smaller)/.test(normalized);
+
+  if (!zoomIn && !zoomOut) {
+    return null;
+  }
+
+  const amount = extractPercentValue(normalized) || 10;
+  return {
+    percentDelta: zoomIn ? amount : -amount
+  };
+}
+
+function extractScrollCommand(normalized) {
+  if (/scroll to (the )?top/.test(normalized) || /top of (the )?page/.test(normalized)) {
+    return { position: 'top' };
+  }
+  if (/scroll to (the )?bottom/.test(normalized) || /bottom of (the )?page/.test(normalized)) {
+    return { position: 'bottom' };
+  }
+
+  const directionUp = /(scroll up|page up|go up)/.test(normalized);
+  const directionDown = /(scroll down|page down|go down)/.test(normalized);
+  const directionLeft = /(scroll left|pan left|move left)/.test(normalized);
+  const directionRight = /(scroll right|pan right|move right)/.test(normalized);
+
+  if (!directionUp && !directionDown && !directionLeft && !directionRight) {
+    return null;
+  }
+
+  const percent = extractPercentValue(normalized) || 50;
+  return {
+    direction: directionUp
+      ? 'up'
+      : directionDown
+        ? 'down'
+        : directionLeft
+          ? 'left'
+          : 'right',
+    amountPercent: percent
+  };
 }
 
 function extractOpenWebsiteCommand(normalized) {
@@ -536,4 +660,87 @@ async function ensureMicPermission() {
     updateVoiceStatus('Unable to access the microphone on this page.', 'error');
     return false;
   }
+}
+
+function extractPercentValue(normalized) {
+  const numberMatch = normalized.match(/(\d+)\s*(?:percent|%)/);
+  if (numberMatch) {
+    return parseInt(numberMatch[1], 10);
+  }
+
+  if (/half/.test(normalized)) return 50;
+  if (/quarter/.test(normalized)) return 25;
+  if (/ten/.test(normalized)) return 10;
+  if (/twenty/.test(normalized)) return 20;
+  if (/thirty/.test(normalized)) return 30;
+  return null;
+}
+
+async function sendZoomCommand(command) {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) {
+      throw new Error('No active tab found.');
+    }
+    await sendMessageToTab(tab.id, MESSAGE_TYPES.ZOOM_PAGE, { payload: command });
+    if (command.reset) {
+      return 'Zoom reset to default.';
+    }
+    return command.percentDelta > 0 ? 'Zoomed in.' : 'Zoomed out.';
+  } catch (error) {
+    console.error('Zoom command failed:', error);
+    updateVoiceStatus('Unable to adjust zoom on this page.', 'error');
+    return null;
+  }
+}
+
+async function sendScrollCommand(command) {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) {
+      throw new Error('No active tab found.');
+    }
+    await sendMessageToTab(tab.id, MESSAGE_TYPES.SCROLL_PAGE, { payload: command });
+
+    if (command.position === 'top') {
+      return 'Scrolled to top.';
+    }
+    if (command.position === 'bottom') {
+      return 'Scrolled to bottom.';
+    }
+    switch (command.direction) {
+      case 'up':
+        return 'Scrolling up.';
+      case 'down':
+        return 'Scrolling down.';
+      case 'left':
+        return 'Scrolling left.';
+      case 'right':
+        return 'Scrolling right.';
+      default:
+        return 'Scrolling.';
+    }
+  } catch (error) {
+    console.error('Scroll command failed:', error);
+    updateVoiceStatus('Unable to scroll this page right now.', 'error');
+    return null;
+  }
+}
+
+function isSystemFeedback(normalized) {
+  const phrases = [
+    'paused reading',
+    'resuming reading',
+    'stopped reading',
+    'scrolling up',
+    'scrolling down',
+    'scrolling left',
+    'scrolling right',
+    'zoomed in',
+    'zoomed out',
+    'zoom reset to default',
+    'finished reading',
+    'reading encountered an error'
+  ];
+  return phrases.some((phrase) => normalized.includes(phrase));
 }
