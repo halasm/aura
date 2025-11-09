@@ -13,6 +13,7 @@ export const MESSAGE_TYPES = {
   REQUEST_SUMMARY: 'REQUEST_SUMMARY',
   SUMMARY_READY: 'SUMMARY_READY',
   SUMMARY_ERROR: 'SUMMARY_ERROR',
+  REQUEST_MIC_PERMISSION: 'REQUEST_MIC_PERMISSION',
   STATUS_UPDATE: 'STATUS_UPDATE',
   CONTENT_EXTRACTED: 'CONTENT_EXTRACTED',
   READING_COMPLETE: 'READING_COMPLETE',
@@ -50,7 +51,8 @@ export const OVERLAY_IDS = {
   STATUS: 'aura-status',
   PAUSE_BUTTON: 'aura-pause-btn',
   RESUME_BUTTON: 'aura-resume-btn',
-  STOP_BUTTON: 'aura-stop-btn'
+  STOP_BUTTON: 'aura-stop-btn',
+  EXIT_BUTTON: 'aura-exit-btn'
 };
 
 // Reading status

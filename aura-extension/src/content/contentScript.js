@@ -15,6 +15,10 @@ if (window.__AURA_CONTENT_SCRIPT_LOADED__) {
   let extractPageContent, pageReader, overlay, registerMessageHandler, sendRuntimeMessage, MESSAGE_TYPES, READING_STATUS, READING_MODES;
   let modulesLoaded = false;
   let currentStatus = 'idle';
+  const MIC_PERMISSION_SOURCE = 'AURA_MIC_PERMISSION';
+  const MIC_PERMISSION_IFRAME_ID = 'aura-mic-permission-iframe';
+  let micPermissionPromise = null;
+  let micPermissionGranted = false;
 
   /**
    * Load all required modules dynamically
@@ -169,6 +173,11 @@ if (window.__AURA_CONTENT_SCRIPT_LOADED__) {
           });
           break;
 
+        case MESSAGE_TYPES.REQUEST_MIC_PERMISSION:
+          await requestMicrophonePermission();
+          sendResponse({ success: true });
+          break;
+
         default:
           sendResponse({ error: 'Unknown message type' });
       }
@@ -176,6 +185,85 @@ if (window.__AURA_CONTENT_SCRIPT_LOADED__) {
       console.error('[AURA] Error handling message:', error);
       sendResponse({ error: error.message });
     }
+  }
+  /**
+   * Request microphone permission via hidden iframe
+   */
+  function requestMicrophonePermission() {
+    if (micPermissionGranted) {
+      return Promise.resolve();
+    }
+
+    if (micPermissionPromise) {
+      return micPermissionPromise;
+    }
+
+    micPermissionPromise = new Promise((resolve, reject) => {
+      const cleanup = (iframe, handler, timeoutId) => {
+        if (iframe && iframe.parentNode) {
+          iframe.parentNode.removeChild(iframe);
+        }
+        if (handler) {
+          window.removeEventListener('message', handler);
+        }
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      };
+
+      try {
+        const parent = document.body || document.documentElement;
+        if (!parent) {
+          throw new Error('Document is not ready for permission injection');
+        }
+
+        const existing = document.getElementById(MIC_PERMISSION_IFRAME_ID);
+        if (existing) {
+          existing.remove();
+        }
+
+        const iframe = document.createElement('iframe');
+        iframe.id = MIC_PERMISSION_IFRAME_ID;
+        iframe.hidden = true;
+        iframe.allow = 'microphone';
+        iframe.src = chrome.runtime.getURL('src/permissions/request.html');
+        parent.appendChild(iframe);
+
+        const timeoutId = setTimeout(() => {
+          cleanup(iframe, messageHandler, timeoutId);
+          reject(new Error('Microphone permission request timed out'));
+        }, 10000);
+
+        const messageHandler = (event) => {
+          if (event.source !== iframe.contentWindow) {
+            return;
+          }
+          const data = event?.data;
+          if (!data || data.source !== MIC_PERMISSION_SOURCE) {
+            return;
+          }
+          cleanup(iframe, messageHandler, timeoutId);
+
+          if (data.status === 'granted') {
+            micPermissionGranted = true;
+            resolve();
+          } else if (data.status === 'unsupported') {
+            reject(new Error('Microphone access is not supported in this browser.'));
+          } else {
+            reject(new Error(data.error || 'Microphone permission was denied.'));
+          }
+        };
+
+        window.addEventListener('message', messageHandler);
+      } catch (error) {
+        micPermissionPromise = null;
+        reject(error);
+      }
+    }).finally(() => {
+      micPermissionPromise = null;
+    });
+
+    return micPermissionPromise;
   }
 
   /**

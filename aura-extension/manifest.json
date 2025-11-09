@@ -49,7 +49,9 @@
         "src/content/overlay.css",
         "src/content/*.js",
         "src/common/*.js",
-        "src/speech/*.js"
+        "src/speech/*.js",
+        "src/permissions/*.html",
+        "src/permissions/*.js"
       ],
       "matches": ["<all_urls>"]
     }

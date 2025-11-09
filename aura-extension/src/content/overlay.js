@@ -11,6 +11,7 @@ class Overlay {
     this.pauseButton = null;
     this.resumeButton = null;
     this.stopButton = null;
+    this.exitButton = null;
     this.summaryElement = null;
     this.onPause = null;
     this.onResume = null;
@@ -100,7 +101,30 @@ class Overlay {
       }
     });
 
+    // Create exit button
+    this.exitButton = document.createElement('button');
+    this.exitButton.id = OVERLAY_IDS.EXIT_BUTTON;
+    this.exitButton.className = 'aura-exit-button';
+    this.exitButton.type = 'button';
+    this.exitButton.textContent = '×';
+    this.exitButton.setAttribute('aria-label', 'Stop reading and close AURA');
+    this.exitButton.title = 'Close AURA';
+    const exitHandler = () => {
+      if (this.onStop) {
+        this.onStop();
+      }
+      this.hide();
+    };
+    this.exitButton.addEventListener('click', exitHandler);
+    this.exitButton.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        exitHandler();
+      }
+    });
+
     // Assemble overlay
+    this.overlay.appendChild(this.exitButton);
     controls.appendChild(this.pauseButton);
     controls.appendChild(this.resumeButton);
     controls.appendChild(this.stopButton);
@@ -198,6 +222,10 @@ class Overlay {
         this.resumeButton.disabled = true;
         this.stopButton.disabled = true;
     }
+
+    if (this.exitButton) {
+      this.exitButton.disabled = status === READING_STATUS.SUMMARIZING;
+    }
   }
 
   /**
@@ -240,6 +268,7 @@ class Overlay {
     this.pauseButton = null;
     this.resumeButton = null;
     this.stopButton = null;
+    this.exitButton = null;
     this.summaryElement = null;
   }
 

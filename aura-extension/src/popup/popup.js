@@ -18,6 +18,13 @@ const resumeButton = document.getElementById('resume-button');
 const stopButton = document.getElementById('stop-button');
 const optionsLink = document.getElementById('options-link');
 const modeRadios = document.querySelectorAll('input[name="reading-mode"]');
+const voiceButton = document.getElementById('voice-command-button');
+const voiceStatus = document.getElementById('voice-status');
+
+let recognition = null;
+let isListening = false;
+let voiceSupported = false;
+let micPermissionReady = false;
 
 /**
  * Update status display
@@ -277,6 +284,7 @@ refreshStatus();
 
 // Load reading mode preference
 initReadingMode();
+initVoiceCommands();
 
 // Poll for status updates while popup is open
 const statusInterval = setInterval(refreshStatus, 1000);
@@ -327,5 +335,157 @@ async function setMode(mode) {
     });
   } catch (error) {
     console.error('Failed to persist reading mode preference:', error);
+  }
+}
+
+function initVoiceCommands() {
+  if (!voiceButton || !voiceStatus) {
+    return;
+  }
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    voiceButton.disabled = true;
+    voiceStatus.textContent = 'Voice commands are not supported in this browser.';
+    return;
+  }
+
+  recognition = new SpeechRecognition();
+  recognition.lang = 'en-US';
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  recognition.addEventListener('start', () => {
+    isListening = true;
+    setVoiceButtonListening(true);
+    updateVoiceStatus('Listening…');
+  });
+
+  recognition.addEventListener('end', () => {
+    isListening = false;
+    setVoiceButtonListening(false);
+    updateVoiceStatus('');
+  });
+
+  recognition.addEventListener('error', (event) => {
+    console.error('Voice recognition error:', event.error);
+    isListening = false;
+    setVoiceButtonListening(false);
+    if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+      updateVoiceStatus('Microphone access is blocked. Allow microphone permissions for AURA in Chrome and try again.', 'error');
+      if (voiceButton) {
+        voiceButton.disabled = true;
+        voiceButton.title = 'Microphone permission is blocked';
+      }
+    } else {
+      updateVoiceStatus(`Voice error: ${event.error}`, 'error');
+    }
+  });
+
+  recognition.addEventListener('result', async (event) => {
+    const transcript = event?.results?.[0]?.[0]?.transcript?.trim();
+    if (!transcript) {
+      updateVoiceStatus('Sorry, I did not catch that.', 'error');
+      return;
+    }
+    await handleVoiceTranscript(transcript);
+  });
+
+  voiceSupported = true;
+  voiceButton.addEventListener('click', async () => {
+    if (!voiceSupported) return;
+    if (isListening) {
+      recognition.stop();
+      return;
+    }
+
+    const permissionGranted = await ensureMicPermission();
+    if (!permissionGranted) {
+      return;
+    }
+
+    recognition.start();
+  });
+
+  updateVoiceStatus('Tap voice command to speak.');
+}
+
+function setVoiceButtonListening(listening) {
+  if (!voiceButton) return;
+  voiceButton.classList.toggle('listening', listening);
+  voiceButton.textContent = listening ? 'Listening… (tap to stop)' : '🎙️ Voice command';
+}
+
+function updateVoiceStatus(message, type = '') {
+  if (!voiceStatus) return;
+  voiceStatus.textContent = message || '';
+  voiceStatus.className = `voice-status${type ? ` ${type}` : ''}`;
+}
+
+async function handleVoiceTranscript(transcript) {
+  const normalized = transcript.toLowerCase();
+  updateVoiceStatus(`Heard: “${transcript}”`);
+
+  if (/(stop|cancel|halt)/.test(normalized)) {
+    await stopReading();
+    updateVoiceStatus('Stopped reading.');
+    return;
+  }
+
+  if (/(pause)/.test(normalized)) {
+    await pauseReading();
+    updateVoiceStatus('Paused reading.');
+    return;
+  }
+
+  if (/(resume|continue)/.test(normalized)) {
+    await resumeReading();
+    updateVoiceStatus('Resumed reading.');
+    return;
+  }
+
+  const desiredMode = determineModeFromTranscript(normalized);
+  if (!desiredMode) {
+    updateVoiceStatus('Please say “read this page”, “describe this page”, or “summarize this page”.', 'error');
+    return;
+  }
+
+  await setMode(desiredMode);
+  await startReading();
+  updateVoiceStatus(desiredMode === READING_MODES.SUMMARY ? 'Describing this page.' : 'Reading the full page.');
+}
+
+function determineModeFromTranscript(normalized) {
+  if (/(describe|summary|summarize|overview|short version)/.test(normalized)) {
+    return READING_MODES.SUMMARY;
+  }
+  if (/(read|full|entire|article|out loud)/.test(normalized)) {
+    return READING_MODES.FULL;
+  }
+  return null;
+}
+
+async function ensureMicPermission() {
+  if (micPermissionReady) {
+    return true;
+  }
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) {
+      throw new Error('No active tab found for microphone permission.');
+    }
+    const response = await sendMessageToTab(tab.id, MESSAGE_TYPES.REQUEST_MIC_PERMISSION);
+    if (response?.success) {
+      micPermissionReady = true;
+      updateVoiceStatus('Microphone ready. Speak your command.');
+      return true;
+    }
+    updateVoiceStatus('Microphone permission was denied.', 'error');
+    return false;
+  } catch (error) {
+    console.error('Failed to secure microphone permission:', error);
+    updateVoiceStatus('Unable to access the microphone on this page.', 'error');
+    return false;
   }
 }
