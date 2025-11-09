@@ -9,6 +9,28 @@ import { getStorage } from '../common/storage.js';
 const DEFAULT_AI_MODEL = 'gpt-4o-mini';
 const DEFAULT_AI_BASE_URL = 'https://api.openai.com/v1';
 const MAX_CONTENT_CHARS = 12000;
+const KNOWN_SITES = [
+  { url: 'https://www.google.com/', aliases: ['google'] },
+  { url: 'https://www.youtube.com/', aliases: ['youtube', 'yt', 'you tube'] },
+  { url: 'https://mail.google.com/', aliases: ['gmail', 'google mail'] },
+  { url: 'https://calendar.google.com/', aliases: ['google calendar', 'calendar'] },
+  { url: 'https://www.facebook.com/', aliases: ['facebook', 'fb'] },
+  { url: 'https://www.twitter.com/', aliases: ['twitter', 'x', 'tweet'] },
+  { url: 'https://www.instagram.com/', aliases: ['instagram', 'ig', 'insta'] },
+  { url: 'https://www.tiktok.com/', aliases: ['tiktok', 'tick tock'] },
+  { url: 'https://www.linkedin.com/', aliases: ['linkedin', 'linked in'] },
+  { url: 'https://www.reddit.com/', aliases: ['reddit'] },
+  { url: 'https://www.amazon.com/', aliases: ['amazon'] },
+  { url: 'https://www.netflix.com/', aliases: ['netflix'] },
+  { url: 'https://www.spotify.com/', aliases: ['spotify'] },
+  { url: 'https://drive.google.com/', aliases: ['google drive', 'drive'] },
+  { url: 'https://docs.google.com/document/u/0/', aliases: ['google docs', 'docs'] },
+  { url: 'https://docs.google.com/spreadsheets/u/0/', aliases: ['google sheets', 'sheets'] },
+  { url: 'https://open.spotify.com/', aliases: ['open spotify'] },
+  { url: 'https://news.ycombinator.com/', aliases: ['hacker news', 'hn'] },
+  { url: 'https://chat.openai.com/', aliases: ['chatgpt', 'gpt', 'openai chat'] },
+  { url: 'https://www.bbc.com/', aliases: ['bbc'] }
+];
 
 chrome.action.onClicked.addListener(async (tab) => {
   try {
@@ -62,6 +84,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       } catch (error) {
         console.error('Summary request failed:', error);
         sendResponse({ error: error.message, type: MESSAGE_TYPES.SUMMARY_ERROR });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === MESSAGE_TYPES.OPEN_WEBSITE) {
+    (async () => {
+      try {
+        const result = await openWebsite(message.query, message.options);
+        sendResponse({ success: true, ...result });
+      } catch (error) {
+        console.error('Failed to open requested website:', error);
+        sendResponse({ success: false, error: error.message });
       }
     })();
     return true;
@@ -188,4 +223,57 @@ async function readErrorBody(response) {
     console.warn('Failed to read error body:', error);
     return 'Unknown error';
   }
+}
+
+async function openWebsite(rawQuery = '', options = {}) {
+  const query = (rawQuery || '').toLowerCase().trim();
+  if (!query) {
+    throw new Error('No website name provided');
+  }
+
+  const match = findKnownSite(query);
+  const urlToOpen = match || buildSearchUrl(query);
+
+  const openInNewTab = options?.newTab ?? false;
+  if (openInNewTab) {
+    await chrome.tabs.create({ url: urlToOpen });
+  } else {
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (activeTab?.id) {
+      await chrome.tabs.update(activeTab.id, { url: urlToOpen });
+    } else {
+      await chrome.tabs.create({ url: urlToOpen });
+    }
+  }
+
+  return {
+    matchedUrl: match || '',
+    finalUrl: urlToOpen,
+    matched: Boolean(match)
+  };
+}
+
+function findKnownSite(query) {
+  const normalized = sanitizeSiteQuery(query);
+  for (const entry of KNOWN_SITES) {
+    if (entry.aliases.some(alias => sanitizeSiteQuery(alias) === normalized)) {
+      return entry.url;
+    }
+  }
+
+  // allow partial contains for queries like "open youtube videos"
+  for (const entry of KNOWN_SITES) {
+    if (entry.aliases.some(alias => normalized.includes(sanitizeSiteQuery(alias)))) {
+      return entry.url;
+    }
+  }
+  return null;
+}
+
+function sanitizeSiteQuery(input = '') {
+  return input.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function buildSearchUrl(query) {
+  return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
 }
