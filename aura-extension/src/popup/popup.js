@@ -578,8 +578,8 @@ function extractScrollCommand(normalized) {
 
   const directionUp = /(scroll up|page up|go up)/.test(normalized);
   const directionDown = /(scroll down|page down|go down)/.test(normalized);
-  const directionLeft = /(scroll left|pan left|move left)/.test(normalized);
-  const directionRight = /(scroll right|pan right|move right)/.test(normalized);
+  const directionLeft = /(scroll left|pan left|move left|go left)/.test(normalized);
+  const directionRight = /(scroll right|pan right|move right|go right)/.test(normalized);
 
   if (!directionUp && !directionDown && !directionLeft && !directionRight) {
     return null;
